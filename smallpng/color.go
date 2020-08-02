@@ -6,6 +6,10 @@ import (
 	"math/rand"
 )
 
+const (
+	maxClusterIterations = 5
+)
+
 // PaletteImage creates a color palette for an image using
 // clustering to minimize the discrepency from reduced
 // colors.
@@ -19,11 +23,12 @@ func PaletteImage(img image.Image) *image.Paletted {
 	}
 	clusters := newColorClusters(colors, 256)
 	loss := clusters.Iterate()
-	for i := 0; i < 50; i++ {
-		loss1 := clusters.Iterate()
-		if loss1 >= loss {
+	for i := 0; i < maxClusterIterations; i++ {
+		newLoss := clusters.Iterate()
+		if newLoss >= loss {
 			break
 		}
+		loss = newLoss
 	}
 	palette := make(color.Palette, 256)
 	for i, x := range clusters.Centers {
