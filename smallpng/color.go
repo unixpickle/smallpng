@@ -8,6 +8,7 @@ import (
 
 const (
 	maxClusterIterations = 5
+	maxClusterPixels     = 100000
 )
 
 // PaletteImage creates a color palette for an image using
@@ -21,6 +22,8 @@ func PaletteImage(img image.Image) *image.Paletted {
 			colors = append(colors, newRGBAColor(img.At(x, y)))
 		}
 	}
+	colors = subsampleClusterPixels(colors)
+
 	clusters := newColorClusters(colors, 256)
 	loss := clusters.Iterate()
 	for i := 0; i < maxClusterIterations; i++ {
@@ -41,6 +44,17 @@ func PaletteImage(img image.Image) *image.Paletted {
 		}
 	}
 	return res
+}
+
+func subsampleClusterPixels(colors []rgbaColor) []rgbaColor {
+	if len(colors) <= maxClusterPixels {
+		return colors
+	}
+	for i := 0; i < maxClusterPixels; i++ {
+		j := rand.Intn(len(colors) - i)
+		colors[i], colors[j] = colors[j], colors[i]
+	}
+	return colors[:maxClusterPixels]
 }
 
 type rgbaColor [4]float32
