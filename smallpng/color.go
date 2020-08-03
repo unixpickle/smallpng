@@ -4,6 +4,8 @@ import (
 	"image"
 	"image/color"
 	"math/rand"
+	"runtime"
+	"sync"
 )
 
 const (
@@ -144,22 +146,45 @@ func newColorClusters(allColors []rgbaColor, numCenters int) *colorClusters {
 func (c *colorClusters) Iterate() float64 {
 	centerSum := make([]rgbaColor, len(c.Centers))
 	centerCount := make([]int, len(c.Centers))
+	totalError := 0.0
 
-	var totalError float64
-	for _, co := range c.AllColors {
-		closestDist := 0.0
-		closestIdx := 0
-		for i, center := range c.Centers {
-			d := float64(co.DistSquared(center))
-			if d < closestDist || i == 0 {
-				closestDist = d
-				closestIdx = i
+	numProcs := runtime.GOMAXPROCS(0)
+	var resultLock sync.Mutex
+	var wg sync.WaitGroup
+	for i := 0; i < numProcs; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			localCenterSum := make([]rgbaColor, len(c.Centers))
+			localCenterCount := make([]int, len(c.Centers))
+			localTotalError := 0.0
+			for i := idx; i < len(c.AllColors); i += numProcs {
+				co := c.AllColors[i]
+				closestDist := 0.0
+				closestIdx := 0
+				for i, center := range c.Centers {
+					d := float64(co.DistSquared(center))
+					if d < closestDist || i == 0 {
+						closestDist = d
+						closestIdx = i
+					}
+				}
+				localCenterSum[closestIdx] = localCenterSum[closestIdx].Add(co)
+				localCenterCount[closestIdx]++
+				localTotalError += closestDist
 			}
-		}
-		centerSum[closestIdx] = centerSum[closestIdx].Add(co)
-		centerCount[closestIdx]++
-		totalError += closestDist
+			resultLock.Lock()
+			defer resultLock.Unlock()
+			for i, c := range localCenterCount {
+				centerCount[i] += c
+			}
+			for i, s := range localCenterSum {
+				centerSum[i] = centerSum[i].Add(s)
+			}
+			totalError += localTotalError
+		}(i)
 	}
+	wg.Wait()
 
 	for i, newCenter := range centerSum {
 		count := centerCount[i]
