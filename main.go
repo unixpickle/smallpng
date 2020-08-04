@@ -13,7 +13,10 @@ import (
 
 func main() {
 	var noPalette bool
+	var maxIters int
 	flag.BoolVar(&noPalette, "no-palette", false, "use the original color space, not a palette")
+	flag.IntVar(&maxIters, "max-iters", smallpng.DefaultMaxKMeansIters,
+		"maximum number of clustering iterations (more iterations means better clusters)")
 
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: ", os.Args[0], " [flags] <input.png> [output.png]")
@@ -37,7 +40,7 @@ func main() {
 
 	img := ReadImage(inputPath)
 	if !noPalette {
-		img = smallpng.PaletteImage(img)
+		img = smallpng.PaletteImage(img, maxIters)
 	}
 	WriteImage(outputPath, img)
 }

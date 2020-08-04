@@ -8,15 +8,25 @@ import (
 	"sync"
 )
 
+// DefaultMaxKMeansIters is the default maximum number of
+// iterations of the k-means algorithm for clustering.
+const DefaultMaxKMeansIters = 5
+
 const (
-	maxClusterIterations = 5
-	maxClusterPixels     = 100000
+	maxClusterPixels = 100000
 )
 
 // PaletteImage creates a color palette for an image using
 // clustering to minimize the discrepency from reduced
 // colors.
-func PaletteImage(img image.Image) *image.Paletted {
+//
+// If maxIters is non-zero, then it limits the number of
+// k-means iterations for clustering.
+// Otherwise, DefaultMaxKMeansIters is used.
+func PaletteImage(img image.Image, maxIters int) *image.Paletted {
+	if maxIters == 0 {
+		maxIters = DefaultMaxKMeansIters
+	}
 	bounds := img.Bounds()
 	colors := make([]rgbaColor, 0, bounds.Dx()*bounds.Dy())
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
@@ -28,7 +38,7 @@ func PaletteImage(img image.Image) *image.Paletted {
 
 	clusters := newColorClusters(colors, 256)
 	loss := clusters.Iterate()
-	for i := 0; i < maxClusterIterations; i++ {
+	for i := 0; i < maxIters; i++ {
 		newLoss := clusters.Iterate()
 		if newLoss >= loss {
 			break
