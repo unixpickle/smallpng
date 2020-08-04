@@ -49,6 +49,12 @@ func PaletteImage(img image.Image, maxIters int) *image.Paletted {
 	for i, x := range clusters.Centers {
 		palette[i] = x.Color()
 	}
+
+	// Prevent nil colors in palette.
+	for i := len(clusters.Centers); i < len(palette); i++ {
+		palette[i] = palette[0]
+	}
+
 	res := image.NewPaletted(bounds, palette)
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
