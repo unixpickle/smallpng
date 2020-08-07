@@ -24,14 +24,23 @@ const (
 // k-means iterations for clustering.
 // Otherwise, DefaultMaxKMeansIters is used.
 func PaletteImage(img image.Image, maxIters int) *image.Paletted {
+	return PaletteImageColorSpace(img, maxIters, CIELAB)
+}
+
+// PaletteImageColorSpace is like PaletteImage, but it
+// allows you to configure which color space the colors
+// are clustered in.
+//
+// Using Lab is more perceptually accurate than RGB.
+func PaletteImageColorSpace(img image.Image, maxIters int, cs ColorSpace) *image.Paletted {
 	if maxIters == 0 {
 		maxIters = DefaultMaxKMeansIters
 	}
 	bounds := img.Bounds()
-	colors := make([]rgbaColor, 0, bounds.Dx()*bounds.Dy())
+	colors := make([]colorVector, 0, bounds.Dx()*bounds.Dy())
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			colors = append(colors, newRGBAColor(img.At(x, y)))
+			colors = append(colors, cs.toVector(img.At(x, y)))
 		}
 	}
 	colors = subsampleClusterPixels(colors)
@@ -47,7 +56,7 @@ func PaletteImage(img image.Image, maxIters int) *image.Paletted {
 	}
 	palette := make(color.Palette, 256)
 	for i, x := range clusters.Centers {
-		palette[i] = x.Color()
+		palette[i] = cs.toColor(x)
 	}
 
 	// Prevent nil colors in palette.
@@ -64,7 +73,7 @@ func PaletteImage(img image.Image, maxIters int) *image.Paletted {
 	return res
 }
 
-func subsampleClusterPixels(colors []rgbaColor) []rgbaColor {
+func subsampleClusterPixels(colors []colorVector) []colorVector {
 	if len(colors) <= maxClusterPixels {
 		return colors
 	}
@@ -75,71 +84,20 @@ func subsampleClusterPixels(colors []rgbaColor) []rgbaColor {
 	return colors[:maxClusterPixels]
 }
 
-type rgbaColor [4]float32
-
-func newRGBAColor(c color.Color) rgbaColor {
-	r, g, b, a := c.RGBA()
-	return rgbaColor{
-		float32(r) / 0xffff,
-		float32(g) / 0xffff,
-		float32(b) / 0xffff,
-		float32(a) / 0xffff,
-	}
-}
-
-func (r rgbaColor) DistSquared(r1 rgbaColor) float32 {
-	var res float32
-	for i, x := range r {
-		d := x - r1[i]
-		res += d * d
-	}
-	return res
-}
-
-func (r rgbaColor) Add(r1 rgbaColor) rgbaColor {
-	for i, x := range r1 {
-		r[i] += x
-	}
-	return r
-}
-
-func (r rgbaColor) Scale(s float32) rgbaColor {
-	for i, x := range r {
-		r[i] = x * s
-	}
-	return r
-}
-
-func (r rgbaColor) Color() color.RGBA {
-	for i, x := range r {
-		if x < 0 {
-			r[i] = 0
-		} else if x > 1 {
-			r[i] = 1
-		}
-	}
-	return color.RGBA{
-		R: uint8(r[0] * 255.999),
-		G: uint8(r[1] * 255.999),
-		B: uint8(r[2] * 255.999),
-		A: uint8(r[3] * 255.999),
-	}
-}
-
 type colorClusters struct {
-	Centers   []rgbaColor
-	AllColors []rgbaColor
+	Centers   []colorVector
+	AllColors []colorVector
 }
 
-func newColorClusters(allColors []rgbaColor, numCenters int) *colorClusters {
+func newColorClusters(allColors []colorVector, numCenters int) *colorClusters {
 	// Optimization for the case where there are enough
 	// centers to cover every mode exactly.
-	uniqueColors := map[rgbaColor]bool{}
+	uniqueColors := map[colorVector]bool{}
 	for _, c := range allColors {
 		uniqueColors[c] = true
 	}
 	if len(uniqueColors) <= numCenters {
-		unique := make([]rgbaColor, 0, len(uniqueColors))
+		unique := make([]colorVector, 0, len(uniqueColors))
 		for c := range uniqueColors {
 			unique = append(unique, c)
 		}
@@ -160,7 +118,7 @@ func newColorClusters(allColors []rgbaColor, numCenters int) *colorClusters {
 // If the MSE loss does not decrease, then the process has
 // converged.
 func (c *colorClusters) Iterate() float64 {
-	centerSum := make([]rgbaColor, len(c.Centers))
+	centerSum := make([]colorVector, len(c.Centers))
 	centerCount := make([]int, len(c.Centers))
 	totalError := 0.0
 
@@ -171,7 +129,7 @@ func (c *colorClusters) Iterate() float64 {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			localCenterSum := make([]rgbaColor, len(c.Centers))
+			localCenterSum := make([]colorVector, len(c.Centers))
 			localCenterCount := make([]int, len(c.Centers))
 			localTotalError := 0.0
 			for i := idx; i < len(c.AllColors); i += numProcs {
@@ -212,8 +170,8 @@ func (c *colorClusters) Iterate() float64 {
 	return totalError / float64(len(c.AllColors))
 }
 
-func kmeansPlusPlusInit(allColors []rgbaColor, numCenters int) []rgbaColor {
-	centers := make([]rgbaColor, numCenters)
+func kmeansPlusPlusInit(allColors []colorVector, numCenters int) []colorVector {
+	centers := make([]colorVector, numCenters)
 	centers[0] = allColors[rand.Intn(len(allColors))]
 	dists := newCenterDistances(allColors, centers[0])
 	for i := 1; i < numCenters; i++ {
@@ -225,12 +183,12 @@ func kmeansPlusPlusInit(allColors []rgbaColor, numCenters int) []rgbaColor {
 }
 
 type centerDistances struct {
-	AllColors   []rgbaColor
+	AllColors   []colorVector
 	Distances   []float64
 	DistanceSum float64
 }
 
-func newCenterDistances(allColors []rgbaColor, center rgbaColor) *centerDistances {
+func newCenterDistances(allColors []colorVector, center colorVector) *centerDistances {
 	dists := make([]float64, len(allColors))
 	sum := 0.0
 	for i, c := range allColors {
@@ -244,7 +202,7 @@ func newCenterDistances(allColors []rgbaColor, center rgbaColor) *centerDistance
 	}
 }
 
-func (c *centerDistances) Update(newCenter rgbaColor) {
+func (c *centerDistances) Update(newCenter colorVector) {
 	c.DistanceSum = 0
 	for i, co := range c.AllColors {
 		d := float64(co.DistSquared(newCenter))
