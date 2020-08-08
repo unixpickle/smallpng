@@ -22,7 +22,9 @@ func CompressImage(inPath, outPath string, c *Config) error {
 		return err
 	}
 	if !c.NoPalette {
-		img = PaletteImage(img, c.MaxIters)
+		img = PaletteImage(img, &PaletteConfig{
+			MaxKMeansIters: c.MaxIters,
+		})
 	}
 	return WriteImage(outPath, img)
 }

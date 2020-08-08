@@ -8,8 +8,8 @@ import (
 type ColorSpace int
 
 const (
-	RGB ColorSpace = iota
-	CIELAB
+	CIELAB ColorSpace = iota
+	RGB
 )
 
 const labAlphaScale = 128.0

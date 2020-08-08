@@ -12,51 +12,82 @@ import (
 // iterations of the k-means algorithm for clustering.
 const DefaultMaxKMeansIters = 5
 
-const (
-	maxClusterPixels = 100000
-)
+// DefaultPaletteSize is the default number of colors in a
+// color palette.
+const DefaultPaletteSize = 256
+
+// DefaultMaxClusterPixels is the default number of pixels
+// to randomly subsample from an image for clustering.
+const DefaultMaxClusterPixels = 100000
+
+// PaletteConfig determines how palette's are produced for
+// images.
+type PaletteConfig struct {
+	// MaxKMeansIters is the maximum number of clustering
+	// iterations. If 0, use DefaultMaxKMeansIters.
+	MaxKMeansIters int
+
+	// PaletteSize is the number of colors to use in the
+	// palette. If 0, use DefaultPaletteSize.
+	PaletteSize int
+
+	// MaxClusterPixels is the maximum number of pixels to
+	// use as data-points for clustering. If 0, use
+	// DefaultMaxClusterPixels.
+	MaxClusterPixels int
+
+	// ColorSpace is the color space to use for computing
+	// pixel distances and averages.
+	// If unspecified, the zero value for ColorSpace is
+	// used.
+	ColorSpace ColorSpace
+}
+
+func (p PaletteConfig) setDefaults() PaletteConfig {
+	if p.MaxKMeansIters == 0 {
+		p.MaxKMeansIters = DefaultMaxKMeansIters
+	}
+	if p.PaletteSize == 0 {
+		p.PaletteSize = DefaultPaletteSize
+	}
+	if p.MaxClusterPixels == 0 {
+		p.MaxClusterPixels = DefaultMaxClusterPixels
+	}
+	return p
+}
 
 // PaletteImage creates a color palette for an image using
 // clustering to minimize the discrepency from reduced
 // colors.
 //
-// If maxIters is non-zero, then it limits the number of
-// k-means iterations for clustering.
-// Otherwise, DefaultMaxKMeansIters is used.
-func PaletteImage(img image.Image, maxIters int) *image.Paletted {
-	return PaletteImageColorSpace(img, maxIters, CIELAB)
-}
-
-// PaletteImageColorSpace is like PaletteImage, but it
-// allows you to configure which color space the colors
-// are clustered in.
-//
-// Using Lab is more perceptually accurate than RGB.
-func PaletteImageColorSpace(img image.Image, maxIters int, cs ColorSpace) *image.Paletted {
-	if maxIters == 0 {
-		maxIters = DefaultMaxKMeansIters
+// If p is specified, it is used to configure the palette.
+func PaletteImage(img image.Image, p *PaletteConfig) *image.Paletted {
+	if p == nil {
+		p = &PaletteConfig{}
 	}
+	*p = p.setDefaults()
+
 	bounds := img.Bounds()
 	colors := make([]colorVector, 0, bounds.Dx()*bounds.Dy())
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			colors = append(colors, cs.toVector(img.At(x, y)))
+			colors = append(colors, p.ColorSpace.toVector(img.At(x, y)))
 		}
 	}
-	colors = subsampleClusterPixels(colors)
+	colors = subsampleClusterPixels(colors, p.MaxClusterPixels)
 
-	clusters := newColorClusters(colors, 256)
+	clusters := newColorClusters(colors, p.PaletteSize)
 	loss := clusters.Iterate()
-	for i := 0; i < maxIters; i++ {
+	for i := 0; i < p.MaxKMeansIters; i++ {
 		newLoss := clusters.Iterate()
 		if newLoss >= loss {
 			break
 		}
 		loss = newLoss
 	}
-	palette := make(color.Palette, 256)
+	palette := make(color.Palette, p.PaletteSize)
 	for i, x := range clusters.Centers {
-		palette[i] = cs.toColor(x)
+		palette[i] = p.ColorSpace.toColor(x)
 	}
 
 	// Prevent nil colors in palette.
@@ -73,15 +104,15 @@ func PaletteImageColorSpace(img image.Image, maxIters int, cs ColorSpace) *image
 	return res
 }
 
-func subsampleClusterPixels(colors []colorVector) []colorVector {
-	if len(colors) <= maxClusterPixels {
+func subsampleClusterPixels(colors []colorVector, maxPixels int) []colorVector {
+	if len(colors) <= maxPixels {
 		return colors
 	}
-	for i := 0; i < maxClusterPixels; i++ {
+	for i := 0; i < maxPixels; i++ {
 		j := rand.Intn(len(colors) - i)
 		colors[i], colors[j] = colors[j], colors[i]
 	}
-	return colors[:maxClusterPixels]
+	return colors[:maxPixels]
 }
 
 type colorClusters struct {
