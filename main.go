@@ -13,6 +13,10 @@ func main() {
 	var config smallpng.Config
 	flag.BoolVar(&config.NoPalette, "no-palette", false,
 		"use the original color space, not a palette")
+	flag.IntVar(&config.PaletteSize, "palette-size", smallpng.DefaultPaletteSize,
+		"number of colors in the color palette")
+	flag.IntVar(&config.MaxClusterPixels, "max-cluster-pixels", smallpng.DefaultMaxClusterPixels,
+		"maximum number of pixels to use as data points for clustering")
 	flag.IntVar(&config.MaxIters, "max-iters", smallpng.DefaultMaxKMeansIters,
 		"maximum number of clustering iterations (more iterations means better clusters)")
 

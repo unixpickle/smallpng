@@ -7,8 +7,10 @@ import (
 )
 
 type Config struct {
-	NoPalette bool
-	MaxIters  int
+	NoPalette        bool
+	PaletteSize      int
+	MaxIters         int
+	MaxClusterPixels int
 }
 
 // CompressImage reads an image from inPath and saves the
@@ -23,7 +25,9 @@ func CompressImage(inPath, outPath string, c *Config) error {
 	}
 	if !c.NoPalette {
 		img = PaletteImage(img, &PaletteConfig{
-			MaxKMeansIters: c.MaxIters,
+			MaxKMeansIters:   c.MaxIters,
+			PaletteSize:      c.PaletteSize,
+			MaxClusterPixels: c.MaxClusterPixels,
 		})
 	}
 	return WriteImage(outPath, img)
