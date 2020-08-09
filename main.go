@@ -21,7 +21,7 @@ func main() {
 		"maximum number of clustering iterations (more iterations means better clusters)")
 
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: ", os.Args[0], " [flags] <input.png> [output.png]")
+		fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "[flags] <input.png> [output.png]")
 		fmt.Fprintln(os.Stderr)
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr)
