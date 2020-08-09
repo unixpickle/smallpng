@@ -8,7 +8,7 @@
 
 # Results
 
-Here are some examples of images compressed using **smallpng**.
+Here are some examples of images compressed using **smallpng**:
 
 | Input | 256 Colors | 64 Colors |
 |-------|------------|-----------|
