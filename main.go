@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/dustin/go-humanize"
 	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/smallpng/smallpng"
 )
@@ -40,5 +41,18 @@ func main() {
 		outputPath = flag.Args()[1]
 	}
 
+	inStats, err := os.Stat(inputPath)
+	essentials.Must(err)
 	essentials.Must(smallpng.CompressImage(inputPath, outputPath, &config))
+	outStats, err := os.Stat(outputPath)
+	essentials.Must(err)
+
+	fracReduction := float64(inStats.Size()-outStats.Size()) / float64(inStats.Size())
+	fmt.Printf(
+		"%s -> %s (%.1f%% reduction)",
+		humanize.Bytes(uint64(inStats.Size())),
+		humanize.Bytes(uint64(outStats.Size())),
+		fracReduction*100,
+	)
+	fmt.Println()
 }
